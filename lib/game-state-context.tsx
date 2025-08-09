@@ -2,8 +2,8 @@
 
 import { createContext, useContext, useState, type ReactNode } from "react"
 
-// Update the GameStatus type to include "sleeping"
-type GameStatus = "title" | "playing" | "settings" | "howToPlay" | "sleeping"
+// Update the GameStatus type to include "sleeping" and "game-over"
+type GameStatus = "title" | "playing" | "settings" | "howToPlay" | "sleeping" | "game-over"
 
 interface GameStateContextType {
   gameStatus: GameStatus

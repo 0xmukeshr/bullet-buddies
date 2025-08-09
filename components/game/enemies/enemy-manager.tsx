@@ -30,9 +30,9 @@ export default function EnemyManager({
   terrainHeightData,
   terrainParams,
   gameStatus,
-  maxEnemies = 2,
+  maxEnemies = 1,
   spawnRadius = 30,
-  spawnInterval = 10000 // 10 seconds
+  spawnInterval = 15000 // 15 seconds
 }: EnemyManagerProps) {
   const [enemies, setEnemies] = useState<EnemyData[]>([])
   const lastSpawnTime = useRef(0)

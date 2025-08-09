@@ -1,6 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import { useGameState } from '@/lib/game-state-context'
 
 interface PlayerStatusContextType {
   health: number
@@ -27,6 +28,22 @@ export function PlayerStatusProvider({ children }: { children: ReactNode }) {
   const [maxFood, setMaxFood] = useState(100)
   const [water, setWater] = useState(100)
   const [maxWater, setMaxWater] = useState(100)
+  
+  // Get game state to trigger game over
+  let gameStateContext = null
+  try {
+    gameStateContext = useGameState()
+  } catch (e) {
+    // Game state context might not be available in some contexts
+  }
+  
+  // Check for game over when health reaches 0
+  useEffect(() => {
+    if (health <= 0 && gameStateContext) {
+      console.log('🪦 Player died! Triggering game over...')
+      gameStateContext.setGameStatus('game-over')
+    }
+  }, [health, gameStateContext])
 
   // Simulate hunger and thirst over time
   useEffect(() => {

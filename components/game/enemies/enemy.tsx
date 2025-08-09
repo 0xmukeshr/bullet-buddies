@@ -37,8 +37,8 @@ export default function Enemy({
   const [particleVelocities, setParticleVelocities] = useState<THREE.Vector3[]>([])
   const [isHit, setIsHit] = useState(false) // Hit flash effect
   const [lastDamageTime, setLastDamageTime] = useState(0) // Track when we last damaged the player
-  const speed = 0.04 // Enemy movement speed (increased from 0.02)
-  const followDistance = 2.0 // Minimum distance to maintain from player
+  const speed = 0.04 // Enemy movement speed (increased for more aggressive behavior)
+  const followDistance = 1.4 // Minimum distance to maintain from player (reduced to get closer)
   const maxDistance = 80 // Maximum distance before enemy despawns
   const hitRadius = 1.0 // Radius for hit detection
   const damageRadius = 1.5 // Distance at which enemy damages player

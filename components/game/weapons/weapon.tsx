@@ -190,7 +190,12 @@ export default function Weapon({ isLocked, onAmmoChange }: WeaponProps) {
         console.log(`📍 Enemy ${enemyId} userData:`, enemy.mesh.userData)
       })
       
-      // Proper hit detection - only hit enemies in crosshairs
+      // Proper hit detection - find the closest enemy in crosshairs
+      let closestEnemy = null
+      let closestDistance = Infinity
+      let closestAngle = Infinity
+      
+      // First pass: find the enemy closest to the crosshair
       enemies.forEach((enemy, enemyId) => {
         const enemyPos = enemy.mesh.position.clone()
         const hitDistance = camera.position.distanceTo(enemyPos)
@@ -206,23 +211,52 @@ export default function Weapon({ isLocked, onAmmoChange }: WeaponProps) {
           
           console.log(`🔍 Enemy ${enemyId}: distance=${hitDistance.toFixed(1)}, angle=${angleInDegrees.toFixed(1)}°`)
           
-          // Only hit if enemy is in a narrow crosshair cone (15 degrees)
-          if (angleInDegrees < 15) {
-            console.log(`🎯 HIT! Enemy ${enemyId} in crosshairs (${angleInDegrees.toFixed(1)}°)`)
-            
-            // Call the enemy's takeDamage function
-            if (enemy.mesh.userData.takeDamage) {
-              enemy.mesh.userData.takeDamage(1)
-            } else {
-              console.warn(`⚠️ Enemy ${enemyId} has no takeDamage function!`)
+          // Only consider enemies in a reasonable crosshair cone (10 degrees for easier targeting)
+          if (angleInDegrees < 10) {
+            // Prioritize by angle first (more precise aim), then by distance
+            if (angleInDegrees < closestAngle || (angleInDegrees === closestAngle && hitDistance < closestDistance)) {
+              closestEnemy = { enemy, enemyId, distance: hitDistance, angle: angleInDegrees }
+              closestAngle = angleInDegrees
+              closestDistance = hitDistance
             }
           } else {
-            console.log(`❌ Enemy ${enemyId} not in crosshairs (${angleInDegrees.toFixed(1)}° > 15°)`)
+            console.log(`❌ Enemy ${enemyId} not in crosshairs (${angleInDegrees.toFixed(1)}° > 10°)`)
           }
         } else {
           console.log(`❌ Enemy ${enemyId} too far (${hitDistance.toFixed(1)} > 50)`)
         }
       })
+      
+      // Hit the closest enemy in crosshairs and nearby clustered enemies
+      if (closestEnemy) {
+        console.log(`🎯 HIT! Enemy ${closestEnemy.enemyId} (closest in crosshairs: ${closestEnemy.angle.toFixed(1)}°, ${closestEnemy.distance.toFixed(1)} units)`)
+        
+        const hitPosition = closestEnemy.enemy.mesh.position.clone()
+        const clusterRadius = 3.0 // Radius for cluster damage
+        let enemiesHit = 0
+        
+        // Find all enemies within cluster radius of the hit enemy
+        enemies.forEach((enemy, enemyId) => {
+          const enemyPos = enemy.mesh.position.clone()
+          const distanceFromHit = hitPosition.distanceTo(enemyPos)
+          
+          // Damage all enemies within cluster radius
+          if (distanceFromHit <= clusterRadius) {
+            if (enemy.mesh.userData.takeDamage) {
+              enemy.mesh.userData.takeDamage(1)
+              enemiesHit++
+              
+              if (enemyId !== closestEnemy.enemyId) {
+                console.log(`💥 CLUSTER HIT! Enemy ${enemyId} (${distanceFromHit.toFixed(1)} units from impact)`)
+              }
+            }
+          }
+        })
+        
+        console.log(`💥 Total enemies hit in cluster: ${enemiesHit}`)
+      } else {
+        console.log(`❌ No enemies in crosshairs`)
+      }
 
       addBulletTrail({
         start,

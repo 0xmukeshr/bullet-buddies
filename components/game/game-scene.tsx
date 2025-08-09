@@ -41,6 +41,7 @@ import StorageBoxInteraction from "./items/storage-box-interaction"
 import Door from "./items/door"
 import StorageBox from "./items/storage-box"
 import Campfire from "./items/campfire"
+import GameOver from "./ui/game-over"
 
 export const MAX_RENDER_DISTANCE = 150
 
@@ -605,9 +606,9 @@ export default function GameScene({
           terrainHeightData={terrainHeightData}
           terrainParams={terrainParams}
           gameStatus={gameStatus}
-          maxEnemies={5}
+          maxEnemies={2}
           spawnRadius={35}
-          spawnInterval={3000}
+          spawnInterval={20000}
         />
       )}
 
@@ -677,6 +678,14 @@ export default function GameScene({
           isOpen={door.isOpen || false}
         />
       ))}
+      
+      {/* Game Over Screen */}
+      {gameStatus === 'game-over' && (
+        <GameOver onRestart={() => {
+          // Reset game state when restarting
+          console.log('🔄 Restarting game...')
+        }} />
+      )}
     </>
   )
 }
