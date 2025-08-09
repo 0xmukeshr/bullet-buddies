@@ -10,6 +10,7 @@ import * as THREE from "three"
 import Player from "./player/player"
 import Trees from "./environment/trees"
 import StoneNodes from "./environment/stone-nodes"
+import EnemyManager from "./enemies/enemy-manager"
 import { useGameState as useGameContext } from "@/lib/game-context"
 import { usePlayerStatus } from "@/lib/player-status-context"
 import { useSettings } from "@/lib/settings-context"
@@ -107,7 +108,7 @@ export default function GameScene({
   setPlacedStorageBoxes,
 }: GameSceneProps) {
   const { scene, camera } = useThree()
-  const { bulletTrails } = useGameContext()
+  const { bulletTrails, playerPosition } = useGameContext()
   const { gameStatus } = useGameState()
   const { settings } = useSettings()
   const { selectedSlot, items } = useToolbar()
@@ -594,6 +595,19 @@ export default function GameScene({
           mouseSensitivity={settings.controls?.mouseSensitivity || 1.0}
           invertY={settings.controls?.invertY || false}
           disabled={isPlayerDisabled}
+        />
+      )}
+
+      {/* Enemy Manager - spawn and manage enemies */}
+      {terrainReady && terrainHeightData.length > 0 && terrainParams && (
+        <EnemyManager
+          playerPosition={playerPosition}
+          terrainHeightData={terrainHeightData}
+          terrainParams={terrainParams}
+          gameStatus={gameStatus}
+          maxEnemies={5}
+          spawnRadius={35}
+          spawnInterval={3000}
         />
       )}
 

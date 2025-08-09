@@ -41,7 +41,7 @@ export default function Weapon({ isLocked, onAmmoChange }: WeaponProps) {
   const weaponRef = useRef<THREE.Group>(null)
   const muzzleFlashRef = useRef<THREE.Mesh>(null)
   const [isShooting, setIsShooting] = useState(false)
-  const { addBulletTrail } = useGameState()
+  const { addBulletTrail, enemies } = useGameState()
   const clock = useThree((state) => state.clock)
   const soundManager = useSoundManager()
   const firstRender = useRef(true)
@@ -165,7 +165,7 @@ export default function Weapon({ isLocked, onAmmoChange }: WeaponProps) {
       }, 50) // Flash duration in ms
     }
 
-    // Create bullet trail
+    // Create bullet trail and perform hit detection
     if (weaponRef.current) {
       const start = new THREE.Vector3()
       weaponRef.current.getWorldPosition(start)
@@ -175,6 +175,54 @@ export default function Weapon({ isLocked, onAmmoChange }: WeaponProps) {
 
       const end = new THREE.Vector3()
       end.copy(start).add(direction.multiplyScalar(100))
+
+      // Perform raycasting for enemy hit detection
+      const raycaster = new THREE.Raycaster(camera.position, direction)
+      
+      console.log('🔫 FIRING WEAPON - Starting hit detection...')
+      console.log('Camera position:', camera.position)
+      console.log('Fire direction:', direction)
+      console.log(`Found ${enemies.size} registered enemies`)
+      
+      // Debug: List all registered enemies
+      enemies.forEach((enemy, enemyId) => {
+        console.log(`📍 Enemy ${enemyId} at:`, enemy.mesh.position)
+        console.log(`📍 Enemy ${enemyId} userData:`, enemy.mesh.userData)
+      })
+      
+      // Proper hit detection - only hit enemies in crosshairs
+      enemies.forEach((enemy, enemyId) => {
+        const enemyPos = enemy.mesh.position.clone()
+        const hitDistance = camera.position.distanceTo(enemyPos)
+        
+        // Only check enemies within reasonable range
+        if (hitDistance < 50) {
+          // Calculate direction from camera to enemy
+          const directionToEnemy = enemyPos.clone().sub(camera.position).normalize()
+          
+          // Calculate angle between where we're aiming and where the enemy is
+          const angle = direction.angleTo(directionToEnemy)
+          const angleInDegrees = (angle * 180) / Math.PI
+          
+          console.log(`🔍 Enemy ${enemyId}: distance=${hitDistance.toFixed(1)}, angle=${angleInDegrees.toFixed(1)}°`)
+          
+          // Only hit if enemy is in a narrow crosshair cone (15 degrees)
+          if (angleInDegrees < 15) {
+            console.log(`🎯 HIT! Enemy ${enemyId} in crosshairs (${angleInDegrees.toFixed(1)}°)`)
+            
+            // Call the enemy's takeDamage function
+            if (enemy.mesh.userData.takeDamage) {
+              enemy.mesh.userData.takeDamage(1)
+            } else {
+              console.warn(`⚠️ Enemy ${enemyId} has no takeDamage function!`)
+            }
+          } else {
+            console.log(`❌ Enemy ${enemyId} not in crosshairs (${angleInDegrees.toFixed(1)}° > 15°)`)
+          }
+        } else {
+          console.log(`❌ Enemy ${enemyId} too far (${hitDistance.toFixed(1)} > 50)`)
+        }
+      })
 
       addBulletTrail({
         start,
