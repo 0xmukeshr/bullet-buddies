@@ -34,8 +34,8 @@ export default function TitlePage() {
     <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-50">
       <div className="max-w-2xl w-full px-4">
         <h1 className="text-6xl font-bold text-center text-white mb-8">
-          <span className="text-game-primary">Fe₂</span>
-          <span className="text-game-accent">O₃</span>
+          <span className="text-game-primary"> bULLET</span>
+          <span className="text-game-accent">    bUDDIES</span>
         </h1>
 
         <div className="space-y-4 max-w-md mx-auto">
@@ -68,7 +68,9 @@ export default function TitlePage() {
         )}
 
         <div className="mt-12 text-gray-400 text-center text-sm">
-          <p>© 2025 Fe₂O₃. All rights reserved.</p>
+          <p>
+            Made with ❤️ by {"Dematter"}
+            </  p>
         </div>
       </div>
     </div>

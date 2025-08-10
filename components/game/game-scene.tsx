@@ -606,7 +606,7 @@ export default function GameScene({
           terrainHeightData={terrainHeightData}
           terrainParams={terrainParams}
           gameStatus={gameStatus}
-          maxEnemies={2}
+          maxEnemies={5}
           spawnRadius={35}
           spawnInterval={20000}
         />

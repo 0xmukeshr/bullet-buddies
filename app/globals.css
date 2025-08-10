@@ -13,6 +13,19 @@ body {
   overflow: hidden;
 }
 
+/* Hide text cursor (caret) but keep mouse cursor */
+input, textarea, [contenteditable] {
+  caret-color: transparent !important;
+}
+
+/* Hide text selection cursor specifically */
+* {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+}
+
 @keyframes loading-bar {
   0% {
     width: 0%;

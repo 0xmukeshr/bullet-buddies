@@ -5,9 +5,8 @@ import "./globals.css"
 import { Analytics } from "@vercel/analytics/react"
 
 export const metadata: Metadata = {
-  title: "v0 App",
-  description: "Created with v0",
-  generator: "v0.dev",
+  title: "Bullet buddies",
+  description: "Bullet Buddies "
 }
 
 export default function RootLayout({
