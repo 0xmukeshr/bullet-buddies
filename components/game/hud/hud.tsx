@@ -11,6 +11,7 @@ import InteractionPrompt from "./interaction-prompt"
 import { useInventory } from "@/lib/inventory-context"
 import { useCrafting } from "@/lib/crafting-context"
 import { useInteraction } from "@/lib/interaction-context"
+import { useBlockchainGame } from "@/lib/blockchain-game-context"
 
 interface HUDProps {
   isLocked: boolean
@@ -36,6 +37,7 @@ export default function HUD({
   const { isOpen: isInventoryOpen, activeCampfire, inventoryOpenedBy } = useInventory()
   const { setIsOpen: setCraftingOpen } = useCrafting()
   const { showPrompt, promptMessage } = useInteraction()
+  const { blockchainEnabled, isConnected, walletAddress, contractState } = useBlockchainGame()
 
   // When inventory is opened or closed, also open or close crafting, but only if opened via Tab
   useEffect(() => {
@@ -67,6 +69,25 @@ export default function HUD({
 
       {/* Campfire inventory - show when active campfire is set */}
       {activeCampfire && <CampfireInventory campfireId={activeCampfire} onClose={() => {}} />}
+      
+      {/* Blockchain Debug Info - Show in corner */}
+      {isLocked && !isInventoryOpen && (
+        <div className="absolute top-20 left-4 pointer-events-none">
+          <div className="bg-black bg-opacity-50 text-white p-2 rounded text-xs font-mono">
+            <div className="text-yellow-400 mb-1">🔗 BLOCKCHAIN DEBUG</div>
+            <div>Enabled: {blockchainEnabled ? '✅' : '❌'}</div>
+            <div>Connected: {isConnected ? '✅' : '❌'}</div>
+            {walletAddress && (
+              <div>Wallet: {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</div>
+            )}
+            <div>Player Alive: {contractState.playerAlive ? '✅' : '❌'}</div>
+            <div>Enemy Alive: {contractState.enemyAlive ? '✅' : '❌'}</div>
+            <div>Games: {contractState.gamesPlayed}</div>
+            <div>Wins: {contractState.playerWins}</div>
+            <div>Losses: {contractState.enemyWins}</div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

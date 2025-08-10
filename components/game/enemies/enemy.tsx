@@ -106,11 +106,8 @@ export default function Enemy({
             setIsDying(true)
             createDeathBurst()
             
-            // Call blockchain to record enemy kill (player won)
-            if (blockchainEnabled) {
-              console.log('🎯 Calling blockchain: Enemy killed - Player wins!')
-              endBlockchainGame(true).catch(console.error)
-            }
+            // Enemy killed - no blockchain interaction needed
+            console.log('🎯 Enemy killed! (No blockchain recording for enemy kills)')
             
             // Remove enemy after death animation
             setTimeout(() => {

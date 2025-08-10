@@ -54,6 +54,8 @@ export function BlockchainGameProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [blockchainEnabled, setBlockchainEnabled] = useState(false)
+  const [isConnecting, setIsConnecting] = useState(false)
+  const [gameInitialized, setGameInitialized] = useState(false)
   
   const [contractState, setContractState] = useState<BlockchainGameState>({
     player: ethers.ZeroAddress,
@@ -69,17 +71,66 @@ export function BlockchainGameProvider({ children }: { children: ReactNode }) {
   const playerStatus = usePlayerStatus()
   const gameState = useGameState()
   
-  // Connect to wallet and contract
+  // Connect to wallet and contract with connection state management
   const connectWallet = useCallback(async () => {
+    // Prevent multiple simultaneous connection attempts
+    if (isConnecting || isLoading) {
+      console.log('🔒 Connection already in progress, skipping...')
+      return
+    }
+
     try {
       setError(null)
       setIsLoading(true)
+      setIsConnecting(true)
       
       if (typeof window === 'undefined' || !window.ethereum) {
-        throw new Error('Please install MetaMask')
+        throw new Error('Please install MetaMask and connect to Avalanche Fuji Testnet')
       }
 
       const provider = new BrowserProvider(window.ethereum)
+      
+      // Check if we're on the correct network (Fuji testnet)
+      try {
+        const network = await provider.getNetwork()
+        console.log('🌐 Current network:', network.chainId, network.name)
+        
+        if (network.chainId !== BigInt(43113)) {
+          // Request network switch to Fuji testnet
+          try {
+            await window.ethereum.request({
+              method: 'wallet_switchEthereumChain',
+              params: [{ chainId: '0xa869' }], // 43113 in hex
+            })
+          } catch (switchError: any) {
+            // This error code indicates that the chain has not been added to MetaMask
+            if (switchError.code === 4902) {
+              await window.ethereum.request({
+                method: 'wallet_addEthereumChain',
+                params: [
+                  {
+                    chainId: '0xa869',
+                    chainName: 'Avalanche Fuji Testnet',
+                    nativeCurrency: {
+                      name: 'AVAX',
+                      symbol: 'AVAX',
+                      decimals: 18,
+                    },
+                    rpcUrls: ['https://api.avax-test.network/ext/bc/C/rpc'],
+                    blockExplorerUrls: ['https://testnet.snowtrace.io/'],
+                  },
+                ],
+              })
+            } else {
+              throw switchError
+            }
+          }
+        }
+      } catch (networkErr) {
+        console.warn('⚠️ Network check/switch failed:', networkErr)
+        // Continue anyway, let user handle network manually
+      }
+      
       await provider.send("eth_requestAccounts", [])
       const signer = await provider.getSigner()
       const address = await signer.getAddress()
@@ -87,20 +138,39 @@ export function BlockchainGameProvider({ children }: { children: ReactNode }) {
       setSigner(signer)
       setWalletAddress(address)
       
+      // Auto-enable blockchain when wallet connects successfully
+      setBlockchainEnabled(true)
+      
       // Connect to contract
       const gameContract = OneVsOneBlackRoom__factory.connect(CONTRACT_ADDRESS, signer)
       setContract(gameContract)
+      
+      // Test contract connection with a simple read operation
+      console.log('🔗 Testing contract connection...')
+      try {
+        await gameContract.getGameStats()
+        console.log('✅ Contract connection successful')
+      } catch (contractErr) {
+        console.warn('⚠️ Contract read test failed:', contractErr)
+        // Continue anyway - might be a network issue
+      }
       
       // Load initial state
       await loadContractState(gameContract)
       
       console.log('🔗 Blockchain connected:', address)
+      console.log('📋 Contract address:', CONTRACT_ADDRESS)
+      console.log('🌐 Ready to interact with Avalanche Fuji Testnet')
     } catch (err) {
+      console.error('❌ Wallet connection failed:', err)
       setError(err instanceof Error ? err.message : 'Failed to connect wallet')
+      // Reset blockchain enabled on connection failure
+      setBlockchainEnabled(false)
     } finally {
       setIsLoading(false)
+      setIsConnecting(false)
     }
-  }, [])
+  }, [isConnecting, isLoading])
   
   // Load contract state
   const loadContractState = useCallback(async (gameContract?: OneVsOneBlackRoom) => {
@@ -108,12 +178,27 @@ export function BlockchainGameProvider({ children }: { children: ReactNode }) {
     if (!contractToUse) return
 
     try {
-      const [player, enemy, [playerStatus, enemyStatus], [total, pWins, eWins]] = await Promise.all([
+      // Load basic contract state first
+      const [player, enemy, [total, pWins, eWins]] = await Promise.all([
         contractToUse.player(),
         contractToUse.enemy(),
-        contractToUse.checkStatus(),
         contractToUse.getGameStats()
       ])
+
+      // Only check status if both player and enemy are set (not zero address)
+      let playerStatus = false
+      let enemyStatus = false
+      
+      if (player !== ethers.ZeroAddress && enemy !== ethers.ZeroAddress) {
+        try {
+          const [pStatus, eStatus] = await contractToUse.checkStatus()
+          playerStatus = pStatus
+          enemyStatus = eStatus
+        } catch (statusErr) {
+          console.warn('⚠️ Could not check game status:', statusErr)
+          // Leave status as false if we can't check
+        }
+      }
 
       setContractState({
         player,
@@ -126,6 +211,8 @@ export function BlockchainGameProvider({ children }: { children: ReactNode }) {
       })
     } catch (err) {
       console.error('Failed to load contract state:', err)
+      // Set error but don't throw to prevent UI crashes
+      setError('Failed to load blockchain state')
     }
   }, [contract])
   
@@ -137,21 +224,114 @@ export function BlockchainGameProvider({ children }: { children: ReactNode }) {
       setIsLoading(true)
       setError(null)
       
-      // Spawn player
-      const spawnPlayerTx = await contract.spawnPlayer()
-      await spawnPlayerTx.wait()
+      // Check current contract state first
+      const currentPlayer = await contract.player()
+      const currentEnemy = await contract.enemy()
+      const [playerAlive, enemyAlive] = await contract.checkStatus()
       
-      // Generate random enemy address and spawn
+      console.log('🔍 Current contract state:', {
+        player: currentPlayer,
+        enemy: currentEnemy,
+        playerIsZero: currentPlayer === ethers.ZeroAddress,
+        enemyIsZero: currentEnemy === ethers.ZeroAddress,
+        playerAlive,
+        enemyAlive
+      })
+      
+      // If player or enemy already exist, we need to reset
+      if (currentPlayer !== ethers.ZeroAddress || currentEnemy !== ethers.ZeroAddress) {
+        console.log('⚠️ Game already exists, resetting...')
+        
+        // If game is still in progress, end it first
+        if (playerAlive && enemyAlive) {
+          console.log('⚠️ Game still in progress, ending it to allow reset...')
+          try {
+            // Try to kill enemy first to end the game
+            const gasEstimate = await contract.killEnemy.estimateGas()
+            const killEnemyTx = await contract.killEnemy({
+              gasLimit: gasEstimate * BigInt(120) / BigInt(100),
+              gasPrice: ethers.parseUnits('25', 'gwei')
+            })
+            await killEnemyTx.wait()
+            console.log('✅ Enemy killed to end current game')
+          } catch (killErr) {
+            console.log('Could not kill enemy, trying to kill player instead')
+            try {
+              const gasEstimate = await contract.killPlayer.estimateGas()
+              const killPlayerTx = await contract.killPlayer({
+                gasLimit: gasEstimate * BigInt(120) / BigInt(100),
+                gasPrice: ethers.parseUnits('25', 'gwei')
+              })
+              await killPlayerTx.wait()
+              console.log('✅ Player killed to end current game')
+            } catch (killPlayerErr) {
+              console.error('Could not end game by killing either player or enemy')
+              throw new Error('Cannot start new game - unable to end current game')
+            }
+          }
+        }
+        
+        // Now reset the game
+        try {
+          console.log('🔄 Resetting game...')
+          const gasEstimate = await contract.resetGame.estimateGas()
+          const resetTx = await contract.resetGame({
+            gasLimit: gasEstimate * BigInt(120) / BigInt(100),
+            gasPrice: ethers.parseUnits('25', 'gwei')
+          })
+          await resetTx.wait()
+          console.log('✅ Game reset successful')
+        } catch (resetErr) {
+          console.error('Failed to reset game:', resetErr)
+          throw new Error(`Failed to reset game: ${resetErr.message}`)
+        }
+      }
+      
+      // Now spawn player with proper gas handling
+      console.log('🏃 Spawning player...')
+      try {
+        // Estimate gas first to avoid transaction failures
+        const gasEstimate = await contract.spawnPlayer.estimateGas()
+        const spawnPlayerTx = await contract.spawnPlayer({
+          gasLimit: gasEstimate * BigInt(120) / BigInt(100), // Add 20% buffer
+          gasPrice: ethers.parseUnits('25', 'gwei') // Fuji testnet gas price
+        })
+        await spawnPlayerTx.wait()
+        console.log('✅ Player spawned successfully')
+      } catch (spawnErr: any) {
+        console.error('❌ Failed to spawn player:', spawnErr)
+        if (spawnErr.reason === 'Player already set') {
+          console.log('⚠️ Player already spawned, continuing...')
+        } else {
+          throw new Error(`Failed to spawn player: ${spawnErr.message}`)
+        }
+      }
+      
+      // Generate random enemy address and spawn with proper gas handling
       const randomWallet = ethers.Wallet.createRandom()
       const enemyAddress = randomWallet.address
       
-      const spawnEnemyTx = await contract.spawnEnemy(enemyAddress)
-      await spawnEnemyTx.wait()
+      console.log('👾 Spawning enemy:', enemyAddress)
+      try {
+        // Estimate gas first
+        const gasEstimate = await contract.spawnEnemy.estimateGas(enemyAddress)
+        const spawnEnemyTx = await contract.spawnEnemy(enemyAddress, {
+          gasLimit: gasEstimate * BigInt(120) / BigInt(100), // Add 20% buffer
+          gasPrice: ethers.parseUnits('25', 'gwei') // Fuji testnet gas price
+        })
+        await spawnEnemyTx.wait()
+        console.log('✅ Enemy spawned successfully')
+      } catch (spawnErr: any) {
+        console.error('❌ Failed to spawn enemy:', spawnErr)
+        throw new Error(`Failed to spawn enemy: ${spawnErr.message}`)
+      }
       
+      // Reload contract state
       await loadContractState()
       
-      console.log('🎮 Blockchain game started!')
+      console.log('🎮 Blockchain game started successfully!')
     } catch (err) {
+      console.error('❌ Error starting blockchain game:', err)
       setError(err instanceof Error ? err.message : 'Failed to start blockchain game')
       throw err
     } finally {
@@ -161,32 +341,79 @@ export function BlockchainGameProvider({ children }: { children: ReactNode }) {
   
   // End blockchain game (kill player or enemy)
   const endBlockchainGame = useCallback(async (playerWon: boolean) => {
-    if (!contract || !blockchainEnabled) return
+    console.log('🎯 endBlockchainGame called:', {
+      playerWon,
+      contract: !!contract,
+      blockchainEnabled,
+      contractState: {
+        playerAlive: contractState.playerAlive,
+        enemyAlive: contractState.enemyAlive,
+        player: contractState.player,
+        enemy: contractState.enemy
+      }
+    })
+    
+    if (!contract) {
+      console.log('❌ No contract available for endBlockchainGame')
+      return
+    }
+    
+    if (!blockchainEnabled) {
+      console.log('❌ Blockchain not enabled for endBlockchainGame')
+      return
+    }
     
     try {
       setIsLoading(true)
       setError(null)
       
       if (playerWon) {
-        // Player wins - kill enemy
-        const killEnemyTx = await contract.killEnemy()
-        await killEnemyTx.wait()
-        console.log('🏆 Player won! Enemy eliminated on blockchain.')
+        // Player wins - kill enemy (check if enemy exists first)
+        if (contractState.enemy === ethers.ZeroAddress || !contractState.enemyAlive) {
+          console.warn('Cannot kill enemy - no enemy set or already dead')
+          return
+        }
+        try {
+          const gasEstimate = await contract.killEnemy.estimateGas()
+          const killEnemyTx = await contract.killEnemy({
+            gasLimit: gasEstimate * BigInt(120) / BigInt(100),
+            gasPrice: ethers.parseUnits('25', 'gwei')
+          })
+          await killEnemyTx.wait()
+          console.log('🏆 Player won! Enemy eliminated on blockchain.')
+        } catch (killErr: any) {
+          console.error('❌ Failed to kill enemy:', killErr)
+          throw new Error(`Failed to record enemy death: ${killErr.message}`)
+        }
       } else {
-        // Player loses - kill player
-        const killPlayerTx = await contract.killPlayer()
-        await killPlayerTx.wait()
-        console.log('💀 Player died! Loss recorded on blockchain.')
+        // Player loses - kill player (check if player exists first)
+        if (contractState.player === ethers.ZeroAddress || !contractState.playerAlive) {
+          console.warn('Cannot kill player - no player set or already dead')
+          return
+        }
+        try {
+          const gasEstimate = await contract.killPlayer.estimateGas()
+          const killPlayerTx = await contract.killPlayer({
+            gasLimit: gasEstimate * BigInt(120) / BigInt(100),
+            gasPrice: ethers.parseUnits('25', 'gwei')
+          })
+          await killPlayerTx.wait()
+          console.log('💀 Player died! Loss recorded on blockchain.')
+        } catch (killErr: any) {
+          console.error('❌ Failed to kill player:', killErr)
+          throw new Error(`Failed to record player death: ${killErr.message}`)
+        }
       }
       
       await loadContractState()
     } catch (err) {
+      console.error('Error ending blockchain game:', err)
       setError(err instanceof Error ? err.message : 'Failed to end blockchain game')
-      throw err
+      // Don't throw - just log and continue
     } finally {
       setIsLoading(false)
     }
-  }, [contract, blockchainEnabled, loadContractState])
+  }, [contract, blockchainEnabled, contractState, loadContractState])
   
   // Reset blockchain game
   const resetBlockchainGame = useCallback(async () => {
@@ -196,53 +423,161 @@ export function BlockchainGameProvider({ children }: { children: ReactNode }) {
       setIsLoading(true)
       setError(null)
       
-      const resetTx = await contract.resetGame()
+      // Check if game is still in progress
+      try {
+        const [playerAlive, enemyAlive] = await contract.checkStatus()
+        if (playerAlive && enemyAlive) {
+          console.log('⚠️ Game in progress, killing enemy first to allow reset...')
+          const gasEstimate = await contract.killEnemy.estimateGas()
+          const killEnemyTx = await contract.killEnemy({
+            gasLimit: gasEstimate * BigInt(120) / BigInt(100),
+            gasPrice: ethers.parseUnits('25', 'gwei')
+          })
+          await killEnemyTx.wait()
+          console.log('✅ Enemy killed, now can reset')
+        }
+      } catch (statusErr) {
+        console.warn('Could not check game status, attempting direct reset')
+      }
+      
+      const gasEstimate = await contract.resetGame.estimateGas()
+      const resetTx = await contract.resetGame({
+        gasLimit: gasEstimate * BigInt(120) / BigInt(100),
+        gasPrice: ethers.parseUnits('25', 'gwei')
+      })
       await resetTx.wait()
       
       await loadContractState()
       
       console.log('🔄 Blockchain game reset!')
     } catch (err) {
+      console.error('❌ Failed to reset blockchain game:', err)
       setError(err instanceof Error ? err.message : 'Failed to reset blockchain game')
-      throw err
+      // Don't throw - just log the error
     } finally {
       setIsLoading(false)
     }
   }, [contract, blockchainEnabled, loadContractState])
   
-  // Monitor player health for blockchain integration
+  // Monitor player health for blockchain integration with better logging
   useEffect(() => {
-    if (!blockchainEnabled || !contract || !contractState.playerAlive) return
+    console.log('🔍 Player health check:', {
+      health: playerStatus.health,
+      blockchainEnabled,
+      contract: !!contract,
+      playerAlive: contractState.playerAlive
+    })
+    
+    if (!blockchainEnabled) {
+      console.log('⚠️ Blockchain not enabled, skipping health check')
+      return
+    }
+    
+    if (!contract) {
+      console.log('⚠️ No contract connected, skipping health check')
+      return
+    }
+    
+    if (!contractState.playerAlive) {
+      console.log('⚠️ Player not alive on blockchain, skipping health check')
+      return
+    }
     
     if (playerStatus.health <= 0) {
       console.log('💀 Player health reached 0, ending blockchain game...')
-      endBlockchainGame(false) // Player lost
+      endBlockchainGame(false).then(() => {
+        console.log('✅ Player death recorded on blockchain')
+      }).catch(err => {
+        console.error('❌ Failed to record player death on blockchain:', err)
+      })
     }
   }, [playerStatus.health, blockchainEnabled, contract, contractState.playerAlive, endBlockchainGame])
   
-  // Monitor game state changes
+  // Monitor game state changes with debouncing
   useEffect(() => {
-    if (!blockchainEnabled) return
+    if (!blockchainEnabled || !contract) {
+      console.log('🔍 Blockchain not enabled or contract not connected:', { blockchainEnabled, contract: !!contract })
+      setGameInitialized(false)
+      return
+    }
     
-    // Start blockchain game when transitioning to playing
-    if (gameState.gameStatus === 'playing' && gameState.hasStarted && contract && 
-        !contractState.playerAlive && !contractState.enemyAlive) {
-      console.log('🚀 Game started, initializing blockchain game...')
-      startBlockchainGame().catch(console.error)
+    console.log('🔍 Game state check:', {
+      gameStatus: gameState.gameStatus,
+      hasStarted: gameState.hasStarted,
+      playerAlive: contractState.playerAlive,
+      enemyAlive: contractState.enemyAlive,
+      player: contractState.player,
+      enemy: contractState.enemy,
+      gameInitialized
+    })
+    
+    // Start blockchain game when transitioning to playing - with debouncing
+    if (gameState.gameStatus === 'playing' && gameState.hasStarted && !gameInitialized) {
+      const needsNewGame = (
+        (!contractState.playerAlive && !contractState.enemyAlive) ||
+        (contractState.player === ethers.ZeroAddress && contractState.enemy === ethers.ZeroAddress)
+      )
+      
+      if (needsNewGame && !isLoading) {
+        console.log('🚀 Game started, initializing blockchain game...')
+        setGameInitialized(true)
+        startBlockchainGame().catch((err) => {
+          console.error('Failed to start blockchain game:', err)
+          setGameInitialized(false) // Reset on failure
+        })
+      } else {
+        console.log('🔍 Blockchain game already in progress or loading, skipping initialization')
+        setGameInitialized(true) // Mark as initialized if game is already running
+      }
     }
     
     // Reset blockchain game when returning to title
-    if (gameState.gameStatus === 'title' && contract && 
-        (contractState.playerAlive || contractState.enemyAlive)) {
-      console.log('🔄 Game reset, resetting blockchain game...')
-      resetBlockchainGame().catch(console.error)
+    if (gameState.gameStatus === 'title') {
+      console.log('🏠 Returning to home/title screen - checking reset needs:', {
+        playerAlive: contractState.playerAlive,
+        enemyAlive: contractState.enemyAlive,
+        playerAddress: contractState.player,
+        enemyAddress: contractState.enemy,
+        blockchainEnabled
+      })
+      
+      // Reset blockchain game if there are active players/enemies OR if addresses are set
+      const needsReset = (
+        contractState.playerAlive || 
+        contractState.enemyAlive || 
+        (contractState.player !== ethers.ZeroAddress) ||
+        (contractState.enemy !== ethers.ZeroAddress)
+      )
+      
+      if (needsReset && blockchainEnabled && contract) {
+        console.log('🔄 Game reset needed, resetting blockchain game...')
+        resetBlockchainGame().then(() => {
+          console.log('✅ Blockchain game reset completed - ready for new game')
+        }).catch((error) => {
+          console.error('❌ Failed to reset blockchain game:', error)
+          // Set error but don't block the reset process
+          setError('Failed to reset blockchain game. You may need to manually reset.')
+        })
+      } else if (!blockchainEnabled) {
+        console.log('ℹ️ Blockchain not enabled, skipping blockchain reset')
+      } else if (!needsReset) {
+        console.log('ℹ️ No blockchain reset needed - game already clean')
+      }
+      
+      setGameInitialized(false) // Reset initialization state
+    }
+    
+    // Reset initialization state when transitioning to game over
+    if (gameState.gameStatus === 'game-over') {
+      setGameInitialized(false)
     }
   }, [gameState.gameStatus, gameState.hasStarted, blockchainEnabled, contract, 
-      contractState.playerAlive, contractState.enemyAlive, startBlockchainGame, resetBlockchainGame])
+      contractState.playerAlive, contractState.enemyAlive, contractState.player, contractState.enemy, 
+      startBlockchainGame, resetBlockchainGame, gameInitialized, isLoading])
   
-  // Listen for contract events
+  // Listen for contract events with debouncing
   useEffect(() => {
-    if (!contract) return
+    if (!contract || !blockchainEnabled) return
 
     const handlePlayerSpawned = (player: string) => {
       console.log('🏃 Player spawned on blockchain:', player)
@@ -269,20 +604,21 @@ export function BlockchainGameProvider({ children }: { children: ReactNode }) {
       loadContractState()
     }
 
-    contract.on('PlayerSpawned', handlePlayerSpawned)
-    contract.on('EnemySpawned', handleEnemySpawned)
-    contract.on('PlayerKilled', handlePlayerKilled)
-    contract.on('EnemyKilled', handleEnemyKilled)
-    contract.on('GameReset', handleGameReset)
+    // Note: Event listening disabled for now due to TypeChain v6 compatibility issues
+    // TODO: Implement proper event listening with filters when needed
+    console.log('Event listeners disabled - will poll state instead')
+    
+    // Reduced polling frequency and only when blockchain is enabled and game is active
+    const pollInterval = setInterval(() => {
+      if (contract && blockchainEnabled && (gameState.gameStatus === 'playing' || gameState.gameStatus === 'sleeping')) {
+        loadContractState(contract)
+      }
+    }, 10000) // Reduced frequency: Poll every 10 seconds instead of 5
 
     return () => {
-      contract.off('PlayerSpawned', handlePlayerSpawned)
-      contract.off('EnemySpawned', handleEnemySpawned)
-      contract.off('PlayerKilled', handlePlayerKilled)
-      contract.off('EnemyKilled', handleEnemyKilled)
-      contract.off('GameReset', handleGameReset)
+      clearInterval(pollInterval)
     }
-  }, [contract, loadContractState])
+  }, [contract, loadContractState, blockchainEnabled, gameState.gameStatus])
   
   return (
     <BlockchainGameContext.Provider

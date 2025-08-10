@@ -184,9 +184,9 @@ export default function GameScene({
 
   // Handle pointer lock
   useEffect(() => {
-    if (controls.current) {
+    if (controls.current && controls.current.domElement) {
       const handleLockChange = () => {
-        setIsLocked(document.pointerLockElement === controls.current.domElement)
+        setIsLocked(document.pointerLockElement === controls.current?.domElement)
       }
 
       document.addEventListener("pointerlockchange", handleLockChange)

@@ -18,20 +18,13 @@ import NotificationContainer from "./ui/notification-container"
 import FPSCounter from "./ui/fps-counter"
 import SoundManager from "@/lib/sound-manager"
 import AudioGenerator from "./audio/audio-generator"
-import { GameProvider } from "@/lib/game-context"
-import { SettingsProvider, useSettings } from "@/lib/settings-context"
-import { GameStateProvider, useGameState } from "@/lib/game-state-context"
-import { ToolbarProvider } from "@/lib/toolbar-context"
-import { InventoryProvider, useInventory } from "@/lib/inventory-context"
-import { CraftingProvider } from "@/lib/crafting-context"
-import { PlayerStatusProvider, usePlayerStatus } from "@/lib/player-status-context"
-import { NotificationProvider } from "@/lib/notification-context"
-import { CampfireProvider, useCampfire } from "@/lib/campfire-context"
+import { useSettings } from "@/lib/settings-context"
+import { useGameState } from "@/lib/game-state-context"
+import { useInventory } from "@/lib/inventory-context"
+import { usePlayerStatus } from "@/lib/player-status-context"
+import { useCampfire } from "@/lib/campfire-context"
 import { useNotifications } from "@/lib/notification-context"
-import { StorageBoxProvider } from "@/lib/storage-box-context"
 import StorageBoxInventory from "./ui/storage-box-inventory"
-import { InteractionProvider } from "@/lib/interaction-context"
-import { ItemManagerProvider } from "@/lib/item-manager-context"
 import BlockchainUI from "./ui/blockchain-ui"
 
 // Dynamically import GameScene to avoid SSR issues with THREE.js
@@ -116,7 +109,7 @@ function GameContainerInner() {
   } = useInventory()
   const { getCampfire } = useCampfire()
   const { notifications } = useNotifications()
-  const { health, hydration, hunger, updateStatus } = usePlayerStatus()
+  const { health } = usePlayerStatus()
 
   // THREE.js extension is handled in CanvasWrapper
 
@@ -722,7 +715,6 @@ function GameContainerInner() {
             <CampfireInventory
               campfireId={activeCampfire}
               onClose={handleCloseCampfireInventory}
-              onIgnite={handleCampfireIgnite}
               isActive={placedCampfires.find((c) => c.id === activeCampfire)?.isActive || false}
             />
           )}
@@ -777,7 +769,7 @@ function GameContainerInner() {
               
               {/* Death Message */}
               <p className="text-2xl mb-12 text-gray-200 font-semibold drop-shadow-lg">
-                You were defeated by the enemies!
+                You were defeated by HAKLA !
               </p>
               
               {/* Home Button */}
@@ -812,31 +804,9 @@ function GameContainerInner() {
 
 export default function GameContainer() {
   return (
-    <SettingsProvider>
-      <GameStateProvider>
-        <GameProvider>
-          <PlayerStatusProvider>
-            <NotificationProvider>
-              <ToolbarProvider>
-                <InventoryProvider>
-                  <CampfireProvider>
-                    <StorageBoxProvider>
-                      <CraftingProvider>
-                        <ItemManagerProvider>
-                          <InteractionProvider>
-                            <GameContainerInner />
-                            <NotificationContainer />
-                          </InteractionProvider>
-                        </ItemManagerProvider>
-                      </CraftingProvider>
-                    </StorageBoxProvider>
-                  </CampfireProvider>
-                </InventoryProvider>
-              </ToolbarProvider>
-            </NotificationProvider>
-          </PlayerStatusProvider>
-        </GameProvider>
-      </GameStateProvider>
-    </SettingsProvider>
+    <>
+      <GameContainerInner />
+      <NotificationContainer />
+    </>
   )
 }

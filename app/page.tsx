@@ -1,14 +1,14 @@
 "use client"
 
 import GameContainer from "@/components/game/game-container"
-import { ItemManagerProvider } from "@/lib/item-manager-context"
+import { Providers } from "./providers"
 
 export default function Home() {
   return (
-    <ItemManagerProvider>
+    <Providers>
       <main className="w-full h-screen overflow-hidden bg-black">
         <GameContainer />
       </main>
-    </ItemManagerProvider>
+    </Providers>
   )
 }
