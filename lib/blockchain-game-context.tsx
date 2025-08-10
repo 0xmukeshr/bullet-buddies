@@ -56,6 +56,8 @@ export function BlockchainGameProvider({ children }: { children: ReactNode }) {
   const [blockchainEnabled, setBlockchainEnabled] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
   const [gameInitialized, setGameInitialized] = useState(false)
+  const [isTransactionPending, setIsTransactionPending] = useState(false)
+  const [transactionQueue, setTransactionQueue] = useState<Array<() => Promise<void>>>([])
   
   const [contractState, setContractState] = useState<BlockchainGameState>({
     player: ethers.ZeroAddress,
@@ -70,6 +72,26 @@ export function BlockchainGameProvider({ children }: { children: ReactNode }) {
   // Get game contexts
   const playerStatus = usePlayerStatus()
   const gameState = useGameState()
+  
+  // Transaction queue system to prevent multiple simultaneous transactions
+  const executeTransaction = useCallback(async (transactionFn: () => Promise<void>, description: string) => {
+    if (isTransactionPending) {
+      console.log(`⚠️ Transaction "${description}" skipped - another transaction is pending`)
+      return
+    }
+    
+    try {
+      setIsTransactionPending(true)
+      console.log(`🔄 Starting transaction: ${description}`)
+      await transactionFn()
+      console.log(`✅ Transaction completed: ${description}`)
+    } catch (error) {
+      console.error(`❌ Transaction failed: ${description}`, error)
+      throw error
+    } finally {
+      setIsTransactionPending(false)
+    }
+  }, [isTransactionPending])
   
   // Connect to wallet and contract with connection state management
   const connectWallet = useCallback(async () => {
@@ -220,8 +242,7 @@ export function BlockchainGameProvider({ children }: { children: ReactNode }) {
   const startBlockchainGame = useCallback(async () => {
     if (!contract || !blockchainEnabled) return
     
-    try {
-      setIsLoading(true)
+    return executeTransaction(async () => {
       setError(null)
       
       // Check current contract state first
@@ -330,14 +351,8 @@ export function BlockchainGameProvider({ children }: { children: ReactNode }) {
       await loadContractState()
       
       console.log('🎮 Blockchain game started successfully!')
-    } catch (err) {
-      console.error('❌ Error starting blockchain game:', err)
-      setError(err instanceof Error ? err.message : 'Failed to start blockchain game')
-      throw err
-    } finally {
-      setIsLoading(false)
-    }
-  }, [contract, blockchainEnabled, loadContractState])
+    }, "Start Blockchain Game")
+  }, [contract, blockchainEnabled, loadContractState, executeTransaction])
   
   // End blockchain game (kill player or enemy)
   const endBlockchainGame = useCallback(async (playerWon: boolean) => {
@@ -363,8 +378,7 @@ export function BlockchainGameProvider({ children }: { children: ReactNode }) {
       return
     }
     
-    try {
-      setIsLoading(true)
+    return executeTransaction(async () => {
       setError(null)
       
       if (playerWon) {
@@ -406,21 +420,14 @@ export function BlockchainGameProvider({ children }: { children: ReactNode }) {
       }
       
       await loadContractState()
-    } catch (err) {
-      console.error('Error ending blockchain game:', err)
-      setError(err instanceof Error ? err.message : 'Failed to end blockchain game')
-      // Don't throw - just log and continue
-    } finally {
-      setIsLoading(false)
-    }
-  }, [contract, blockchainEnabled, contractState, loadContractState])
+    }, playerWon ? "Kill Enemy - Player Won" : "Kill Player - Player Lost")
+  }, [contract, blockchainEnabled, contractState, loadContractState, executeTransaction])
   
   // Reset blockchain game
   const resetBlockchainGame = useCallback(async () => {
     if (!contract || !blockchainEnabled) return
     
-    try {
-      setIsLoading(true)
+    return executeTransaction(async () => {
       setError(null)
       
       // Check if game is still in progress
@@ -450,18 +457,13 @@ export function BlockchainGameProvider({ children }: { children: ReactNode }) {
       await loadContractState()
       
       console.log('🔄 Blockchain game reset!')
-    } catch (err) {
-      console.error('❌ Failed to reset blockchain game:', err)
-      setError(err instanceof Error ? err.message : 'Failed to reset blockchain game')
-      // Don't throw - just log the error
-    } finally {
-      setIsLoading(false)
-    }
-  }, [contract, blockchainEnabled, loadContractState])
+    }, "Reset Blockchain Game")
+  }, [contract, blockchainEnabled, loadContractState, executeTransaction])
   
-  // Monitor player health for blockchain integration with better logging
+  // Monitor game state for player death - only trigger killPlayer when game is actually over
   useEffect(() => {
-    console.log('🔍 Player health check:', {
+    console.log('🔍 Game over check:', {
+      gameStatus: gameState.gameStatus,
       health: playerStatus.health,
       blockchainEnabled,
       contract: !!contract,
@@ -469,29 +471,30 @@ export function BlockchainGameProvider({ children }: { children: ReactNode }) {
     })
     
     if (!blockchainEnabled) {
-      console.log('⚠️ Blockchain not enabled, skipping health check')
+      console.log('⚠️ Blockchain not enabled, skipping game over check')
       return
     }
     
     if (!contract) {
-      console.log('⚠️ No contract connected, skipping health check')
+      console.log('⚠️ No contract connected, skipping game over check')
       return
     }
     
     if (!contractState.playerAlive) {
-      console.log('⚠️ Player not alive on blockchain, skipping health check')
+      console.log('⚠️ Player not alive on blockchain, skipping game over check')
       return
     }
     
-    if (playerStatus.health <= 0) {
-      console.log('💀 Player health reached 0, ending blockchain game...')
+    // Only trigger killPlayer when game status is 'game-over' AND player health is 0
+    if (gameState.gameStatus === 'game-over' && playerStatus.health <= 0) {
+      console.log('💀 Game over confirmed - player died! Recording death on blockchain...')
       endBlockchainGame(false).then(() => {
         console.log('✅ Player death recorded on blockchain')
       }).catch(err => {
         console.error('❌ Failed to record player death on blockchain:', err)
       })
     }
-  }, [playerStatus.health, blockchainEnabled, contract, contractState.playerAlive, endBlockchainGame])
+  }, [gameState.gameStatus, playerStatus.health, blockchainEnabled, contract, contractState.playerAlive, endBlockchainGame])
   
   // Monitor game state changes with debouncing
   useEffect(() => {
@@ -508,25 +511,32 @@ export function BlockchainGameProvider({ children }: { children: ReactNode }) {
       enemyAlive: contractState.enemyAlive,
       player: contractState.player,
       enemy: contractState.enemy,
-      gameInitialized
+      gameInitialized,
+      isLoading
     })
     
-    // Start blockchain game when transitioning to playing - with debouncing
-    if (gameState.gameStatus === 'playing' && gameState.hasStarted && !gameInitialized) {
+    // Start blockchain game when transitioning to playing - with strict debouncing
+    if (gameState.gameStatus === 'playing' && gameState.hasStarted && !gameInitialized && !isLoading) {
       const needsNewGame = (
         (!contractState.playerAlive && !contractState.enemyAlive) ||
         (contractState.player === ethers.ZeroAddress && contractState.enemy === ethers.ZeroAddress)
       )
       
-      if (needsNewGame && !isLoading) {
+      if (needsNewGame) {
         console.log('🚀 Game started, initializing blockchain game...')
         setGameInitialized(true)
-        startBlockchainGame().catch((err) => {
-          console.error('Failed to start blockchain game:', err)
-          setGameInitialized(false) // Reset on failure
-        })
+        
+        // Add timeout to prevent immediate triggering
+        const initTimer = setTimeout(() => {
+          startBlockchainGame().catch((err) => {
+            console.error('Failed to start blockchain game:', err)
+            setGameInitialized(false) // Reset on failure
+          })
+        }, 1000) // Wait 1 second before starting blockchain game
+        
+        return () => clearTimeout(initTimer)
       } else {
-        console.log('🔍 Blockchain game already in progress or loading, skipping initialization')
+        console.log('🔍 Blockchain game already in progress, skipping initialization')
         setGameInitialized(true) // Mark as initialized if game is already running
       }
     }
