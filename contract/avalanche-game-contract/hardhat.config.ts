@@ -22,13 +22,13 @@ const config: HardhatUserConfig = {
       url: AVALANCHE_RPC_URL,
       gasPrice: 225000000000,
       chainId: 43114,
-      accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
+      accounts: PRIVATE_KEY && PRIVATE_KEY.startsWith('0x') && PRIVATE_KEY.length === 66 ? [PRIVATE_KEY] : [],
     },
     fuji: {
       url: FUJI_RPC_URL,
       gasPrice: 25000000000,
       chainId: 43113,
-      accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
+      accounts: PRIVATE_KEY && PRIVATE_KEY.startsWith('0x') && PRIVATE_KEY.length === 66 ? [PRIVATE_KEY] : [],
     },
     hardhat: {
       chainId: 1337,
@@ -46,7 +46,7 @@ const config: HardhatUserConfig = {
   },
   typechain: {
     outDir: "typechain-types",
-    target: "ethers-v5",
+    target: "ethers-v6",
   },
 };
 

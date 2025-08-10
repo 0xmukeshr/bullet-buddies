@@ -1,27 +1,27 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { OneVsOneBlackRoom } from "../typechain-types";
 
 describe("OneVsOneBlackRoom", function () {
   let contract: OneVsOneBlackRoom;
-  let owner: SignerWithAddress;
-  let player1: SignerWithAddress; 
-  let enemy1: SignerWithAddress;
-  let other: SignerWithAddress;
+  let owner: HardhatEthersSigner;
+  let player1: HardhatEthersSigner; 
+  let enemy1: HardhatEthersSigner;
+  let other: HardhatEthersSigner;
 
   beforeEach(async function () {
     [owner, player1, enemy1, other] = await ethers.getSigners();
 
     const OneVsOneBlackRoom = await ethers.getContractFactory("OneVsOneBlackRoom");
     contract = await OneVsOneBlackRoom.deploy();
-    await contract.deployed();
+    await contract.waitForDeployment();
   });
 
   describe("Initial State", function () {
     it("Should have correct initial values", async function () {
-      expect(await contract.player()).to.equal(ethers.constants.AddressZero);
-      expect(await contract.enemy()).to.equal(ethers.constants.AddressZero);
+      expect(await contract.player()).to.equal(ethers.ZeroAddress);
+      expect(await contract.enemy()).to.equal(ethers.ZeroAddress);
       expect(await contract.playerAlive()).to.be.false;
       expect(await contract.enemyAlive()).to.be.false;
       expect(await contract.gamesPlayed()).to.equal(0);
@@ -63,7 +63,7 @@ describe("OneVsOneBlackRoom", function () {
     });
 
     it("Should not allow zero address as enemy", async function () {
-      await expect(contract.spawnEnemy(ethers.constants.AddressZero))
+      await expect(contract.spawnEnemy(ethers.ZeroAddress))
         .to.be.revertedWith("Invalid enemy address");
     });
 
@@ -165,8 +165,8 @@ describe("OneVsOneBlackRoom", function () {
       await expect(contract.resetGame())
         .to.emit(contract, "GameReset");
 
-      expect(await contract.player()).to.equal(ethers.constants.AddressZero);
-      expect(await contract.enemy()).to.equal(ethers.constants.AddressZero);
+      expect(await contract.player()).to.equal(ethers.ZeroAddress);
+      expect(await contract.enemy()).to.equal(ethers.ZeroAddress);
       expect(await contract.playerAlive()).to.be.false;
       expect(await contract.enemyAlive()).to.be.false;
     });

@@ -5,18 +5,30 @@
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",
-    "deploy:fuji": "hardhat run scripts/deploy.js --network fuji",
-    "deploy:avalanche": "hardhat run scripts/deploy.js --network avalanche",
+    "test:watch": "hardhat test --watch",
+    "deploy:local": "hardhat run scripts/deploy.ts --network hardhat",
+    "deploy:fuji": "hardhat run scripts/deploy.ts --network fuji",
+    "deploy:avalanche": "hardhat run scripts/deploy.ts --network avalanche",
     "verify:fuji": "hardhat verify --network fuji",
-    "verify:avalanche": "hardhat verify --network avalanche"
+    "verify:avalanche": "hardhat verify --network avalanche",
+    "node": "hardhat node",
+    "clean": "hardhat clean"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^6.1.0",
+    "@typechain/hardhat": "^9.1.0",
+    "dotenv": "^17.2.1",
     "hardhat": "^2.26.2"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "^5.4.0",
-    "dotenv": "^17.2.1"
-    
-  }
+    "@openzeppelin/contracts": "^5.4.0"
+  },
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
 }

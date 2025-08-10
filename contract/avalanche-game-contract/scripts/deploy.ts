@@ -9,14 +9,15 @@ async function main() {
   const OneVsOneBlackRoom = await ethers.getContractFactory("OneVsOneBlackRoom");
   const gameContract = await OneVsOneBlackRoom.deploy();
   
-  await gameContract.deployed();
+  await gameContract.waitForDeployment();
   
-  console.log("OneVsOneBlackRoom deployed to:", gameContract.address);
+  console.log("OneVsOneBlackRoom deployed to:", await gameContract.getAddress());
 
   // Save deployment info
+  const contractAddress = await gameContract.getAddress();
   const deploymentData = {
     network: hre.network.name,
-    contractAddress: gameContract.address,
+    contractAddress: contractAddress,
     deployer: await (await ethers.getSigners())[0].getAddress(),
     blockNumber: await ethers.provider.getBlockNumber(),
     timestamp: new Date().toISOString()
@@ -37,12 +38,12 @@ async function main() {
   // Wait for a few confirmations before verifying
   if (hre.network.name !== "hardhat") {
     console.log("Waiting for confirmations...");
-    await gameContract.deployTransaction.wait(6);
+    await gameContract.deploymentTransaction()?.wait(6);
     
     console.log("Verifying contract on Snowtrace...");
     try {
       await hre.run("verify:verify", {
-        address: gameContract.address,
+        address: contractAddress,
         constructorArguments: [],
       });
     } catch (error: any) {
