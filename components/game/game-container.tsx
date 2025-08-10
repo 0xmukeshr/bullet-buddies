@@ -32,6 +32,7 @@ import { StorageBoxProvider } from "@/lib/storage-box-context"
 import StorageBoxInventory from "./ui/storage-box-inventory"
 import { InteractionProvider } from "@/lib/interaction-context"
 import { ItemManagerProvider } from "@/lib/item-manager-context"
+import BlockchainUI from "./ui/blockchain-ui"
 
 // Dynamically import GameScene to avoid SSR issues with THREE.js
 const GameScene = dynamic(
@@ -686,16 +687,23 @@ function GameContainerInner() {
 
           {/* Only show HUD when playing and not sleeping */}
           {gameStatus === "playing" && (
-            <HUD
-              isLocked={isLocked}
-              terrainReady={terrainReady}
-              showCrosshair={settings.gameplay.showCrosshair}
-              ammo={weaponAmmo}
-              pointerLockSupported={pointerLockSupported}
-              pointerLockError={pointerLockError}
-              returningFromTitle={false}
-              gameStatus={gameStatus}
-            />
+            <>
+              <HUD
+                isLocked={isLocked}
+                terrainReady={terrainReady}
+                showCrosshair={settings.gameplay.showCrosshair}
+                ammo={weaponAmmo}
+                pointerLockSupported={pointerLockSupported}
+                pointerLockError={pointerLockError}
+                returningFromTitle={false}
+                gameStatus={gameStatus}
+              />
+              
+              {/* Blockchain UI - Positioned at top right */}
+              <div className="fixed top-4 right-4 z-30 pointer-events-auto">
+                <BlockchainUI />
+              </div>
+            </>
           )}
 
           {/* Campfire interaction prompt - hide when actively interacting */}

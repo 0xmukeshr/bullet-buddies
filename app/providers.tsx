@@ -13,6 +13,7 @@ import { StorageBoxProvider } from "@/lib/storage-box-context"
 import { CraftingProvider } from "@/lib/crafting-context"
 import { ItemManagerProvider } from "@/lib/item-manager-context"
 import { InteractionProvider } from "@/lib/interaction-context"
+import { BlockchainGameProvider } from "@/lib/blockchain-game-context"
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
@@ -20,21 +21,23 @@ export function Providers({ children }: { children: ReactNode }) {
       <GameStateProvider>
         <GameProvider>
           <PlayerStatusProvider>
-            <NotificationProvider>
-              <ToolbarProvider>
-                <InventoryProvider>
-                  <CampfireProvider>
-                    <StorageBoxProvider>
-                      <CraftingProvider>
-                        <ItemManagerProvider>
-                          <InteractionProvider>{children}</InteractionProvider>
-                        </ItemManagerProvider>
-                      </CraftingProvider>
-                    </StorageBoxProvider>
-                  </CampfireProvider>
-                </InventoryProvider>
-              </ToolbarProvider>
-            </NotificationProvider>
+            <BlockchainGameProvider>
+              <NotificationProvider>
+                <ToolbarProvider>
+                  <InventoryProvider>
+                    <CampfireProvider>
+                      <StorageBoxProvider>
+                        <CraftingProvider>
+                          <ItemManagerProvider>
+                            <InteractionProvider>{children}</InteractionProvider>
+                          </ItemManagerProvider>
+                        </CraftingProvider>
+                      </StorageBoxProvider>
+                    </CampfireProvider>
+                  </InventoryProvider>
+                </ToolbarProvider>
+              </NotificationProvider>
+            </BlockchainGameProvider>
           </PlayerStatusProvider>
         </GameProvider>
       </GameStateProvider>

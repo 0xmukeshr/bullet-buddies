@@ -6,6 +6,7 @@ import { TextureLoader } from 'three'
 import * as THREE from 'three'
 import { useGameState } from '@/lib/game-context'
 import { usePlayerStatus } from '@/lib/player-status-context'
+import { useBlockchainGame } from '@/lib/blockchain-game-context'
 
 interface EnemyProps {
   id: string
@@ -47,6 +48,7 @@ export default function Enemy({
   
   const { getEnemyHits, clearEnemyHits, registerEnemy, unregisterEnemy, updateEnemyPosition } = useGameState()
   const { damage } = usePlayerStatus()
+  const { endBlockchainGame, blockchainEnabled } = useBlockchainGame()
   
   // Load enemy texture
   const enemyTexture = useLoader(TextureLoader, '/enemyhakla.png')
@@ -104,6 +106,12 @@ export default function Enemy({
             setIsDying(true)
             createDeathBurst()
             
+            // Call blockchain to record enemy kill (player won)
+            if (blockchainEnabled) {
+              console.log('🎯 Calling blockchain: Enemy killed - Player wins!')
+              endBlockchainGame(true).catch(console.error)
+            }
+            
             // Remove enemy after death animation
             setTimeout(() => {
               console.log(`Enemy ${id} being destroyed`)
@@ -141,7 +149,10 @@ export default function Enemy({
         id,
         mesh: meshRef.current,
         position: position,
-        hitRadius
+        hitRadius,
+        health,
+        maxHealth: 20,
+        isDead: isDying
       }
       console.log(`🎯 Registering enemy ${id} with game context`)
       console.log('Enemy mesh:', meshRef.current)

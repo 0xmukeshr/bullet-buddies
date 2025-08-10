@@ -63,7 +63,7 @@ export default function HowToPlay() {
             <section>
               <h3 className="text-xl font-bold text-white mb-3">Gameplay</h3>
               <p className="text-gray-300 mb-2">
-                Fe₂O₃ is a first-person shooter game where you explore a procedurally generated terrain.
+                Bullet Buddies is a first-person shooter game where you explore a procedurally generated terrain.
               </p>
               <ul className="list-disc pl-5 text-gray-300 space-y-1">
                 <li>Use WASD to move around the terrain</li>

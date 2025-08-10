@@ -22,6 +22,9 @@ export interface EnemyInstance {
   mesh: THREE.Mesh
   position: THREE.Vector3
   hitRadius: number
+  health: number
+  maxHealth: number
+  isDead: boolean
 }
 
 interface GameState {
